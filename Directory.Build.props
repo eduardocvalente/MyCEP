@@ -1,0 +1,39 @@
+<Project>
+
+  <!--
+    Metadados aplicados a todos os projetos da solution (o formato .sln não
+    guarda autoria). Estas propriedades são gravadas no assembly compilado,
+    então o crédito e o aviso de copyright viajam junto com a DLL — não ficam
+    apenas no repositório.
+
+    Conferir depois do build:
+      (Get-Item bin/Release/net8.0/MyCEP.API.dll).VersionInfo
+  -->
+  <PropertyGroup Label="Autoria">
+    <Authors>Eduardo Valente</Authors>
+    <Company>Eduardo Valente</Company>
+    <Product>MyCEP.API</Product>
+    <Copyright>Copyright (c) 2025-2026 Eduardo Valente. Todos os direitos reservados.</Copyright>
+    <NeutralLanguage>pt-BR</NeutralLanguage>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Repositório">
+    <RepositoryUrl>https://github.com/eduardocvalente/MyCep.Api</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://mycep.eduardovalente.dev</PackageProjectUrl>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Versionamento">
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Build">
+    <!-- Software proprietário: nenhum projeto deve virar pacote NuGet. -->
+    <IsPackable>false</IsPackable>
+    <!-- Build reproduzível: mesma entrada gera o mesmo binário. -->
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+</Project>

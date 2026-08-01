@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+	<!-- Autoria, copyright e versão vêm do Directory.Build.props na raiz. -->
+	<PropertyGroup Label="Identidade do projeto">
+		<AssemblyTitle>MyCEP.API</AssemblyTitle>
+		<Description>API REST de consulta de CEP com cache em PostgreSQL e integração resiliente ao ViaCEP. Autor: Eduardo Valente.</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="DotNetEnv" Version="3.1.1" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.2" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.11" />
+		<PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.10.0" />
+		<PackageReference Include="Refit" Version="8.0.0" />
+		<PackageReference Include="Refit.HttpClientFactory" Version="8.0.0" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.3" />
+	</ItemGroup>
+
+</Project>

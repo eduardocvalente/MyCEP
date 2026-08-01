@@ -1,0 +1,69 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Semanal: pega CVE novo em dependência antiga mesmo sem commit no repo.
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  dependencias:
+    name: Auditoria de dependências NuGet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore MyCEP.API.sln
+
+      - name: Pacotes com vulnerabilidades conhecidas
+        run: |
+          dotnet list MyCEP.API.sln package --vulnerable --include-transitive | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            echo "::error::Dependências vulneráveis encontradas. Veja o log acima."
+            exit 1
+          fi
+
+      - name: Pacotes obsoletos (informativo)
+        continue-on-error: true
+        run: dotnet list MyCEP.API.sln package --outdated
+
+  imagem:
+    name: Scan da imagem Docker (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build da imagem local
+        run: docker build -t mycep-api:scan .
+
+      - name: Trivy — vulnerabilidades CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: mycep-api:scan
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+  segredos:
+    name: Varredura de segredos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

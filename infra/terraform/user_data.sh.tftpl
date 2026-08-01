@@ -1,0 +1,138 @@
+#!/bin/bash
+set -euo pipefail
+exec > >(tee /var/log/user-data.log) 2>&1
+
+echo "=== provisionando $(date -Is) ==="
+
+dnf update -y
+dnf install -y docker
+
+# 1GB de RAM é apertado para .NET + Caddy. Sem swap o kernel mata o
+# processo da API durante picos de alocação do GC.
+if [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+# O compose v2 não vem no repositório do AL2023.
+COMPOSE_VERSION=v2.29.7
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+install -d -m 0755 /opt/mycep
+cd /opt/mycep
+
+# A senha nunca aparece no user_data (que é legível por qualquer processo
+# na instância via metadata) — é buscada em runtime com a instance role.
+DB_PASSWORD="$(aws ssm get-parameter \
+  --name '${db_password_ssm_path}' \
+  --with-decryption \
+  --region '${aws_region}' \
+  --query 'Parameter.Value' \
+  --output text)"
+
+umask 077
+cat > /opt/mycep/.env <<EOF
+CONTAINER_IMAGE=${container_image}
+
+POSTGRES_HOST=${db_host}
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=${db_name}
+POSTGRES_USERNAME=${db_username}
+POSTGRES_PASSWORD=$${DB_PASSWORD}
+POSTGRES_SSLMODE=Require
+
+VIACEP_BASEURL_API=https://viacep.com.br/ws/
+VIACEP_TIMEOUT_SECONDS=30
+
+DATABASE_MIGRATE_ON_STARTUP=true
+ASPNETCORE_ENVIRONMENT=Production
+EOF
+umask 022
+
+cat > /opt/mycep/Caddyfile <<'EOF'
+# Sem domínio ainda: o Let's Encrypt não emite certificado para IP, então
+# a porta 80 responde em texto claro.
+#
+# Quando tiver um domínio, troque o bloco ":80" pelo hostname
+# (ex.: "api.seudominio.com.br {") e o Caddy emite e renova o
+# certificado sozinho, sem mais nenhuma mudança aqui.
+:80 {
+	encode gzip
+
+	handle /health* {
+		reverse_proxy api:8080
+	}
+
+	handle {
+		reverse_proxy api:8080
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+EOF
+
+cat > /opt/mycep/compose.yml <<'EOF'
+services:
+  api:
+    image: $${CONTAINER_IMAGE}
+    restart: unless-stopped
+    env_file: .env
+    # "expose", não "ports": a 8080 só existe dentro da rede do Docker.
+    # Nada além do Caddy alcança a aplicação.
+    expose:
+      - "8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:
+EOF
+
+# Script de deploy, disparado pelo GitHub Actions via SSM Run Command.
+cat > /opt/mycep/deploy.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+cd /opt/mycep
+docker compose pull
+docker compose up -d --remove-orphans
+docker image prune -f
+EOF
+chmod +x /opt/mycep/deploy.sh
+
+/opt/mycep/deploy.sh
+
+echo "=== provisionamento concluido $(date -Is) ==="

@@ -1,0 +1,246 @@
+name: Test Coverage and Quality Gate
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: write
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  MINIMUM_COVERAGE: 80  # Porcentagem mínima de cobertura para aprovar o deploy
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+
+    # Sem service de Postgres: os testes de integração sobem o banco via
+    # Testcontainers no Docker do próprio runner. O service anterior (postgres:13,
+    # já em fim de vida) nunca era usado.
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install bc (quality gate)
+      run: sudo apt-get update && sudo apt-get install -y bc
+
+    - name: Restore dependencies
+      run: dotnet restore MyCEP.API.sln
+
+    - name: Build solution
+      run: dotnet build MyCEP.API.sln --no-restore --configuration Release
+
+    - name: Install coverage tools
+      run: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool
+        dotnet tool install --global coverlet.console
+
+    - name: Run Unit Tests with Coverage
+      env:
+        ASPNETCORE_ENVIRONMENT: Test
+        VIACEP_BASEURL_API: "https://viacep.com.br/ws/"
+        VIACEP_TIMEOUT_SECONDS: "30"
+        POSTGRES_HOST: "localhost"
+        POSTGRES_PORT: "5432"
+        POSTGRES_DATABASE: "testdb"
+        POSTGRES_USERNAME: "postgres"
+        POSTGRES_PASSWORD: "postgres"
+      run: |
+        dotnet test test/MyCEP.API.UnitTest/MyCEP.API.UnitTest.csproj \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults/Unit \
+          --logger trx \
+          --logger "console;verbosity=detailed"
+
+    - name: Run Integration Tests with Coverage
+      env:
+        ASPNETCORE_ENVIRONMENT: Test
+        VIACEP_BASEURL_API: "https://viacep.com.br/ws/"
+        VIACEP_TIMEOUT_SECONDS: "30"
+        POSTGRES_HOST: "localhost"
+        POSTGRES_PORT: "5432"
+        POSTGRES_DATABASE: "testdb"
+        POSTGRES_USERNAME: "postgres"
+        POSTGRES_PASSWORD: "postgres"
+      run: |
+        dotnet test test/MyCEP.API.IntegrationTest/MyCEP.API.IntegrationTest.csproj \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./TestResults/Integration \
+          --logger trx \
+          --logger "console;verbosity=detailed"
+
+    - name: Merge Coverage Reports
+      run: |
+        reportgenerator \
+          -reports:"./TestResults/Unit/**/coverage.cobertura.xml;./TestResults/Integration/**/coverage.cobertura.xml" \
+          -targetdir:"./TestResults/Merged" \
+          -reporttypes:"Cobertura;HtmlInline_AzurePipelines;JsonSummary;TextSummary;MarkdownSummaryGithub" \
+          -filefilters:"-**/Migrations/**"
+
+    - name: Extract Coverage Percentage
+      id: coverage
+      run: |
+        # Extrair porcentagem de cobertura do relatório
+        COVERAGE_PERCENT="0"
+        
+        # Tentar diferentes arquivos de resumo
+        if [ -f "./TestResults/Merged/Summary.txt" ]; then
+          COVERAGE_PERCENT=$(grep -oP 'Line coverage: \K[0-9.]+' ./TestResults/Merged/Summary.txt || echo "0")
+        elif [ -f "./TestResults/Merged/SummaryText.txt" ]; then
+          COVERAGE_PERCENT=$(grep -oP 'Line coverage: \K[0-9.]+' ./TestResults/Merged/SummaryText.txt || echo "0")
+        fi
+        
+        echo "coverage-percent=$COVERAGE_PERCENT" >> $GITHUB_OUTPUT
+        echo "### 📊 Cobertura de Testes: $COVERAGE_PERCENT%" >> $GITHUB_STEP_SUMMARY
+        
+        # Ler o resumo completo
+        if [ -f "./TestResults/Merged/Summary.txt" ]; then
+          echo "### 📋 Resumo Detalhado" >> $GITHUB_STEP_SUMMARY
+          cat ./TestResults/Merged/Summary.txt >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Listar arquivos gerados para debug
+        echo "### 📁 Arquivos Gerados" >> $GITHUB_STEP_SUMMARY
+        ls -la ./TestResults/Merged/ >> $GITHUB_STEP_SUMMARY || echo "Diretório não encontrado" >> $GITHUB_STEP_SUMMARY
+
+    - name: Coverage Quality Gate
+      run: |
+        COVERAGE_PERCENT=${{ steps.coverage.outputs.coverage-percent }}
+        MINIMUM_COVERAGE=${{ env.MINIMUM_COVERAGE }}
+        
+        echo "Cobertura atual: $COVERAGE_PERCENT%"
+        echo "Cobertura mínima exigida: $MINIMUM_COVERAGE%"
+        
+        # Usar comparação aritmética com fallback
+        if command -v bc &> /dev/null; then
+          # Usar bc se disponível
+          if [ $(echo "$COVERAGE_PERCENT >= $MINIMUM_COVERAGE" | bc -l) -eq 1 ]; then
+            QUALITY_GATE_PASSED=true
+          else
+            QUALITY_GATE_PASSED=false
+          fi
+        else
+          # Fallback usando comparação de inteiros (arredondando)
+          COVERAGE_INT=$(echo "$COVERAGE_PERCENT" | cut -d'.' -f1)
+          if [ "$COVERAGE_INT" -ge "$MINIMUM_COVERAGE" ]; then
+            QUALITY_GATE_PASSED=true
+          else
+            QUALITY_GATE_PASSED=false
+          fi
+        fi
+        
+        if [ "$QUALITY_GATE_PASSED" = true ]; then
+          echo "✅ QUALITY GATE PASSED: A cobertura de $COVERAGE_PERCENT% atende ao mínimo exigido de $MINIMUM_COVERAGE%"
+          echo "🚀 Deploy aprovado!"
+        else
+          echo "❌ QUALITY GATE FAILED: A cobertura de $COVERAGE_PERCENT% está abaixo do mínimo exigido de $MINIMUM_COVERAGE%"
+          echo "🚫 Deploy bloqueado!"
+          exit 1
+        fi
+
+    - name: Upload Coverage Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports
+        path: |
+          ./TestResults/Merged/
+          ./TestResults/Unit/**/*.trx
+          ./TestResults/Integration/**/*.trx
+        retention-days: 30
+
+    - name: Comment Coverage on PR
+      if: github.event_name == 'pull_request'
+      continue-on-error: true
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            const fs = require('fs');
+            const githubSummaryPath = './TestResults/Merged/SummaryGithub.md';
+            const markdownPath = './TestResults/Merged/Summary.md';
+            const summaryPath = './TestResults/Merged/Summary.txt';
+            
+            let coverage = '';
+            if (fs.existsSync(githubSummaryPath)) {
+              coverage = fs.readFileSync(githubSummaryPath, 'utf8');
+            } else if (fs.existsSync(markdownPath)) {
+              coverage = fs.readFileSync(markdownPath, 'utf8');
+            } else if (fs.existsSync(summaryPath)) {
+              coverage = '```\n' + fs.readFileSync(summaryPath, 'utf8') + '\n```';
+            }
+            
+            const coveragePercent = '${{ steps.coverage.outputs.coverage-percent }}';
+            const minimumCoverage = '${{ env.MINIMUM_COVERAGE }}';
+            
+            const status = parseFloat(coveragePercent) >= parseFloat(minimumCoverage) ? '✅ APROVADO' : '❌ REPROVADO';
+            const emoji = parseFloat(coveragePercent) >= parseFloat(minimumCoverage) ? '🚀' : '🚫';
+            
+            const body = `## ${emoji} Relatório de Cobertura de Testes - ${status}
+            
+            **Cobertura Atual:** ${coveragePercent}%
+            **Cobertura Mínima:** ${minimumCoverage}%
+            
+            ${coverage}
+            
+            ---
+            
+            ${parseFloat(coveragePercent) >= parseFloat(minimumCoverage) ? 
+              '✅ **Quality Gate Passed** - Deploy aprovado!' : 
+              '❌ **Quality Gate Failed** - Deploy bloqueado! Aumente a cobertura de testes.'}`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+            
+            console.log('✅ Comentário adicionado com sucesso ao PR!');
+          } catch (error) {
+            console.log('⚠️ Não foi possível adicionar comentário ao PR:', error.message);
+            console.log('📊 Cobertura: ${{ steps.coverage.outputs.coverage-percent }}%');
+            // Não falha o workflow se não conseguir comentar
+          }
+
+    - name: Display Coverage Summary
+      if: always()
+      run: |
+        echo "🎯 RESUMO FINAL DA COBERTURA"
+        echo "=========================="
+        echo "📊 Cobertura Atual: ${{ steps.coverage.outputs.coverage-percent }}%"
+        echo "🎯 Cobertura Mínima: ${{ env.MINIMUM_COVERAGE }}%"
+        echo "🔗 Evento: ${{ github.event_name }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"
+        
+        COVERAGE_PERCENT=${{ steps.coverage.outputs.coverage-percent }}
+        MINIMUM_COVERAGE=${{ env.MINIMUM_COVERAGE }}
+        
+        if [ $(echo "$COVERAGE_PERCENT >= $MINIMUM_COVERAGE" | bc -l) -eq 1 ]; then
+          echo "✅ Status: APROVADO"
+          echo "🚀 Deploy: AUTORIZADO"
+        else
+          echo "❌ Status: REPROVADO"
+          echo "🚫 Deploy: BLOQUEADO"
+        fi
+
+  # O deploy real fica em deploy.yml, que roda os testes como gate antes do
+  # build da imagem. O job de "deploy" que existia aqui só imprimia echo e
+  # passava a falsa impressão de que a cobertura bloqueava o deploy.

@@ -1,0 +1,21 @@
+# Copie para terraform.tfvars e ajuste. O .tfvars fica fora do git.
+
+# Obrigatório: imagem publicada no GitHub Container Registry.
+# Torne o pacote público em Packages > mycep-api > Package settings,
+# senão a EC2 precisa autenticar para dar pull.
+container_image = "ghcr.io/SEU-USUARIO/mycep-api:latest"
+
+# Opcional: habilita o deploy automático via OIDC.
+github_repository = "SEU-USUARIO/MyCep.Api"
+
+aws_region  = "sa-east-1"
+project_name = "mycep"
+environment  = "prod"
+
+# Em sa-east-1 confirme em Billing > Free Tier se a cobertura é t2.micro
+# ou t3.micro antes de subir.
+instance_type     = "t3.micro"
+db_instance_class = "db.t4g.micro"
+
+# Restrinja ao seu IP enquanto testa: allowed_http_cidr = "203.0.113.10/32"
+allowed_http_cidr = "0.0.0.0/0"

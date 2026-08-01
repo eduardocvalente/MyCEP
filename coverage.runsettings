@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>
+            [*]*.Migrations.*
+            [*]*.Program
+            [*]*.Startup
+            [*]*Tests*
+            [*]*.Designer
+            [*]*.AssemblyInfo
+            [*]*.GlobalUsings
+          </Exclude>
+          <ExcludeByFile>
+            **/Migrations/**
+            **/bin/**
+            **/obj/**
+            **/*Designer.cs
+            **/*AssemblyInfo.cs
+            **/Program.cs
+            **/GlobalUsings.cs
+          </ExcludeByFile>
+          <IncludeDirectory>
+            **/src/**
+          </IncludeDirectory>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

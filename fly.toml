@@ -1,0 +1,49 @@
+# Configuração do Fly.io para a demo pública.
+#
+# Custo: com auto_stop + min_machines_running = 0, a máquina desliga sem
+# tráfego e religa no primeiro request (~2-4s de cold start). O que sobra
+# de cobrança é só o armazenamento do rootfs — centavos por mês.
+#
+# O TLS termina no proxy do Fly (https://<app>.fly.dev), que repassa
+# X-Forwarded-For/Proto — o ForwardedHeaders do Program.cs já trata isso,
+# então o rate limiting por IP continua enxergando o IP real do cliente.
+
+app = "mycep-api"
+primary_region = "gru" # São Paulo
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  VIACEP_BASEURL_API = "https://viacep.com.br/ws/"
+  VIACEP_TIMEOUT_SECONDS = "10"
+  # Instância única por design (min=0, max padrão 1): migrations no boot são seguras.
+  DATABASE_MIGRATE_ON_STARTUP = "true"
+  POSTGRES_PORT = "5432"
+  # O Neon exige TLS.
+  POSTGRES_SSLMODE = "Require"
+
+# Segredos (NUNCA neste arquivo) — configurar com:
+#   fly secrets set POSTGRES_HOST=... POSTGRES_DATABASE=... \
+#     POSTGRES_USERNAME=... POSTGRES_PASSWORD=...
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    # Cold start + migrations no boot: dá folga antes de cobrar saúde.
+    grace_period = "20s"
+    method = "GET"
+    path = "/health/live"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # 256MB é apertado para o runtime do .NET 8 + EF; 512MB evita OOM no boot.
+  memory = "512mb"

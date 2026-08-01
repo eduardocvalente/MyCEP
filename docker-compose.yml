@@ -1,0 +1,49 @@
+# Ambiente de desenvolvimento local completo: API + PostgreSQL.
+#
+#   docker compose up --build
+#   curl http://localhost:8080/api/ZipCodeLookup/01001000
+#
+# Para rodar só o banco (e a API pela IDE): docker compose up postgres
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      VIACEP_BASEURL_API: https://viacep.com.br/ws/
+      VIACEP_TIMEOUT_SECONDS: "10"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: mycep
+      POSTGRES_USERNAME: mycep
+      # Senha só de desenvolvimento local; o compose nunca sobe assim em produção.
+      POSTGRES_PASSWORD: dev-only-password
+      POSTGRES_SSLMODE: Disable
+      DATABASE_MIGRATE_ON_STARTUP: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mycep
+      POSTGRES_USER: mycep
+      POSTGRES_PASSWORD: dev-only-password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mycep -d mycep"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

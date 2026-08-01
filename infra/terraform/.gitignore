@@ -1,0 +1,22 @@
+.terraform/
+
+# .terraform.lock.hcl deve ser versionado: fixa as versões dos providers
+# para que o plan seja reproduzível.
+
+# O state contém a senha do banco em texto plano.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Valores reais da conta.
+terraform.tfvars
+*.auto.tfvars
+
+crash.log
+crash.*.log
+
+# Plan serializado contém TODOS os valores sensíveis (inclusive a senha
+# gerada pelo random_password) em texto recuperável. Nunca versionar —
+# cobre tanto "tfplan" (sem extensão) quanto "*.tfplan".
+tfplan
+*.tfplan

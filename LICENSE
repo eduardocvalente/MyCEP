@@ -1,0 +1,140 @@
+LICENÇA PROPRIETÁRIA — TODOS OS DIREITOS RESERVADOS
+PROPRIETARY LICENSE — ALL RIGHTS RESERVED
+
+Copyright (c) 2025-2026 Eduardo Valente. Todos os direitos reservados.
+
+================================================================================
+PORTUGUÊS
+================================================================================
+
+1. TITULARIDADE
+
+Este software, incluindo seu código-fonte, documentação, arquitetura,
+configurações de infraestrutura, scripts e demais materiais contidos neste
+repositório (doravante "Software"), é de autoria e propriedade exclusiva de
+Eduardo Valente ("Titular").
+
+A proteção decorre da Lei nº 9.609/1998 (Lei do Software), da Lei nº
+9.610/1998 (Lei de Direitos Autorais) e da Convenção de Berna, sendo
+independente de registro.
+
+2. FINALIDADE DA PUBLICAÇÃO
+
+O Software é disponibilizado publicamente com finalidade EXCLUSIVA de
+demonstração técnica e avaliação profissional do Titular — isto é, para que
+recrutadores, avaliadores técnicos e demais interessados possam LER e ANALISAR
+o código.
+
+Tornar o código legível NÃO o torna livre. A publicação não constitui licença
+de uso, cópia, modificação ou distribuição.
+
+3. PERMITIDO SEM AUTORIZAÇÃO
+
+  a) Visualizar e ler o código-fonte e a documentação;
+  b) Analisar o Software para fins de avaliação técnica do Titular;
+  c) Executar o Software localmente com o único propósito de verificar as
+     competências técnicas demonstradas;
+  d) Citar trechos, com atribuição expressa ao Titular e link para este
+     repositório, em contextos de análise, crítica ou ensino, nos limites do
+     art. 46 da Lei nº 9.610/1998.
+
+4. PROIBIDO SEM AUTORIZAÇÃO PRÉVIA E POR ESCRITO
+
+  a) Copiar, no todo ou em parte, o Software para qualquer outro projeto;
+  b) Apresentar este Software, ou obra dele derivada, como trabalho próprio ou
+     de terceiros — inclusive em portfólios, testes técnicos, trabalhos
+     acadêmicos ou processos seletivos (PLÁGIO);
+  c) Modificar, adaptar, traduzir ou criar obras derivadas;
+  d) Redistribuir, sublicenciar, vender, alugar ou ceder;
+  e) Utilizar o Software, ou qualquer parte dele, em ambiente de produção,
+     comercial ou institucional;
+  f) Remover, ocultar ou alterar avisos de autoria, direitos autorais ou esta
+     licença;
+  g) Utilizar o Software, seu código ou sua documentação para treinamento de
+     modelos de inteligência artificial ou aprendizado de máquina.
+
+5. AUTORIZAÇÃO
+
+Qualquer uso não previsto na cláusula 3 exige autorização prévia, expressa e
+por escrito do Titular. Solicitações devem ser encaminhadas a:
+
+    Eduardo Valente
+    E-mail: eduardocvalente1@hotmail.com
+    GitHub: https://github.com/eduardocvalente
+
+A ausência de resposta não constitui autorização tácita.
+
+6. VIOLAÇÃO
+
+O uso não autorizado sujeita o infrator às sanções civis e penais previstas
+nos arts. 12 e 14 da Lei nº 9.609/1998 e nos arts. 101 a 110 da Lei nº
+9.610/1998, além de responsabilização por perdas e danos.
+
+O Titular reserva-se o direito de solicitar a remoção de conteúdo infrator
+(DMCA takedown ou equivalente) junto a plataformas de hospedagem.
+
+7. AUSÊNCIA DE GARANTIA
+
+O SOFTWARE É FORNECIDO "NO ESTADO EM QUE SE ENCONTRA", SEM GARANTIA DE
+QUALQUER NATUREZA, EXPRESSA OU IMPLÍCITA. O TITULAR NÃO SE RESPONSABILIZA POR
+QUAISQUER DANOS DECORRENTES DO USO OU DA IMPOSSIBILIDADE DE USO DO SOFTWARE.
+
+8. SERVIÇOS DE TERCEIROS
+
+Este Software integra-se ao serviço público ViaCEP, não afiliado ao Titular e
+sujeito aos próprios termos de uso. As dependências de terceiros (pacotes
+NuGet, imagens de container) permanecem sob suas respectivas licenças, que não
+são alteradas por este documento.
+
+================================================================================
+ENGLISH
+================================================================================
+
+1. OWNERSHIP
+
+This software, including its source code, documentation, architecture,
+infrastructure configuration, scripts and all other materials in this
+repository (the "Software"), is the exclusive work and property of Eduardo
+Valente (the "Owner"), protected by Brazilian Laws No. 9.609/1998 and
+9.610/1998 and by the Berne Convention.
+
+2. PURPOSE OF PUBLICATION
+
+The Software is published for the SOLE purpose of technical demonstration and
+professional assessment of the Owner. Public visibility does not make it open
+source and grants no license to use, copy, modify or distribute.
+
+3. PERMITTED WITHOUT AUTHORIZATION
+
+  a) Viewing and reading the source code and documentation;
+  b) Reviewing the Software to assess the Owner's technical skills;
+  c) Running the Software locally solely to verify such skills;
+  d) Quoting excerpts with explicit attribution to the Owner and a link to
+     this repository, for analysis, review or teaching purposes.
+
+4. PROHIBITED WITHOUT PRIOR WRITTEN AUTHORIZATION
+
+  a) Copying the Software, in whole or in part, into any other project;
+  b) Presenting this Software or any derivative as one's own work — including
+     in portfolios, technical assessments, academic work or job applications
+     (PLAGIARISM);
+  c) Modifying, adapting, translating or creating derivative works;
+  d) Redistributing, sublicensing, selling, renting or assigning;
+  e) Using the Software, or any part of it, in production, commercial or
+     institutional environments;
+  f) Removing, obscuring or altering authorship, copyright or license notices;
+  g) Using the Software, its code or documentation to train artificial
+     intelligence or machine learning models.
+
+5. AUTHORIZATION
+
+Any use beyond Section 3 requires prior, express, written authorization from
+the Owner. Requests: eduardocvalente1@hotmail.com
+
+Silence does not constitute authorization.
+
+6. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. THE OWNER SHALL NOT BE LIABLE FOR ANY DAMAGES ARISING FROM THE USE OF
+OR INABILITY TO USE THE SOFTWARE.

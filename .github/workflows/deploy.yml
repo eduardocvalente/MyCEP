@@ -1,0 +1,169 @@
+name: Deploy AWS (manual)
+
+# A demo pública roda no Fly.io (deploy-fly.yml, disparado no push).
+# Este workflow provisiona/atualiza a stack AWS (EC2 + RDS via Terraform)
+# e fica como acionamento manual: se a instância estiver desligada por
+# custo, um push não deve falhar tentando alcançá-la via SSM.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  AWS_REGION: sa-east-1
+
+jobs:
+  test:
+    name: Testes (gate do deploy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore e build
+        run: |
+          dotnet restore MyCEP.API.sln
+          dotnet build MyCEP.API.sln --no-restore --configuration Release
+
+      - name: Testes unitários
+        run: |
+          dotnet test test/MyCEP.API.UnitTest/MyCEP.API.UnitTest.csproj \
+            --configuration Release --no-build --verbosity normal
+
+      # Os testes de integração sobem o Postgres via Testcontainers, usando o
+      # Docker do próprio runner. Os POSTGRES_* abaixo só satisfazem a
+      # validação de bootstrap do Program.cs — a conexão real vem do container.
+      - name: Testes de integração
+        env:
+          ASPNETCORE_ENVIRONMENT: Test
+          VIACEP_BASEURL_API: "https://viacep.com.br/ws/"
+          VIACEP_TIMEOUT_SECONDS: "10"
+          POSTGRES_HOST: "localhost"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DATABASE: "testdb"
+          POSTGRES_USERNAME: "postgres"
+          POSTGRES_PASSWORD: "postgres"
+        run: |
+          dotnet test test/MyCEP.API.IntegrationTest/MyCEP.API.IntegrationTest.csproj \
+            --configuration Release --no-build --verbosity normal
+
+  build:
+    name: Build e push da imagem
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # O GHCR rejeita maiúsculas no caminho da imagem, mas o nome de usuário
+      # do GitHub preserva a capitalização do cadastro.
+      - id: image_name
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}/mycep-api" >> "$GITHUB_OUTPUT"
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy na EC2
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # necessário para o OIDC
+      contents: read
+
+    steps:
+      # Sem access key: o OIDC troca o token do Actions por credenciais
+      # temporárias da role criada no Terraform.
+      - name: Autenticar na AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Disparar deploy via SSM
+        run: |
+          set -euo pipefail
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.AWS_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${{ github.sha }}" \
+            --parameters 'commands=["/opt/mycep/deploy.sh"]' \
+            --query 'Command.CommandId' \
+            --output text)
+
+          echo "CommandId: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.AWS_INSTANCE_ID }}" || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
+            --query 'Status' --output text)
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
+            --query 'StandardOutputContent' --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "::error::Deploy falhou com status $STATUS"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${{ secrets.AWS_INSTANCE_ID }}" \
+              --query 'StandardErrorContent' --output text
+            exit 1
+          fi
+
+      - name: Validar health check
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 10 "http://${{ secrets.API_HOST }}/health" > /dev/null; then
+              echo "API respondendo."
+              exit 0
+            fi
+            echo "tentativa $i falhou, aguardando..."
+            sleep 10
+          done
+          echo "::error::A API não respondeu ao /health após o deploy."
+          exit 1

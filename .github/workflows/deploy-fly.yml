@@ -1,0 +1,96 @@
+name: Deploy Fly.io
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'infra/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fly
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Testes (gate do deploy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore e build
+        run: |
+          dotnet restore MyCEP.API.sln
+          dotnet build MyCEP.API.sln --no-restore --configuration Release
+
+      - name: Testes unitários
+        run: |
+          dotnet test test/MyCEP.API.UnitTest/MyCEP.API.UnitTest.csproj \
+            --configuration Release --no-build --verbosity normal
+
+      # Testcontainers usa o Docker do próprio runner; os POSTGRES_* abaixo
+      # só satisfazem a validação de bootstrap do Program.cs.
+      - name: Testes de integração
+        env:
+          ASPNETCORE_ENVIRONMENT: Test
+          VIACEP_BASEURL_API: "https://viacep.com.br/ws/"
+          VIACEP_TIMEOUT_SECONDS: "10"
+          POSTGRES_HOST: "localhost"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DATABASE: "testdb"
+          POSTGRES_USERNAME: "postgres"
+          POSTGRES_PASSWORD: "postgres"
+        run: |
+          dotnet test test/MyCEP.API.IntegrationTest/MyCEP.API.IntegrationTest.csproj \
+            --configuration Release --no-build --verbosity normal
+
+  deploy:
+    name: Deploy no Fly.io
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+    steps:
+      # Sem o secret FLY_API_TOKEN, o deploy fica a cargo da integração
+      # GitHub do próprio Fly — os passos de flyctl são pulados e apenas o
+      # health check da produção roda.
+      - name: Aviso quando o token está ausente
+        if: env.FLY_API_TOKEN == ''
+        run: echo "::notice::FLY_API_TOKEN não configurado — deploy delegado à integração GitHub do Fly.io."
+
+      - uses: actions/checkout@v4
+        if: env.FLY_API_TOKEN != ''
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+
+      # --remote-only: o build da imagem roda nos builders do Fly,
+      # não no runner — sem docker build local nem push para registry próprio.
+      - name: Deploy
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only
+
+      - name: Validar health check da produção
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 10 "https://mycep.eduardovalente.dev/health" > /dev/null; then
+              echo "API respondendo."
+              exit 0
+            fi
+            echo "tentativa $i falhou, aguardando..."
+            sleep 10
+          done
+          echo "::error::A API não respondeu ao /health após o deploy."
+          exit 1
