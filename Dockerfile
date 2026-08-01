@@ -15,7 +15,7 @@ RUN dotnet publish src/MyCEP.API/MyCEP.API.csproj \
         --output /app/publish \
         -p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 
 # ICU: sem isso o .NET cai em modo invariant e a formatação pt-BR
